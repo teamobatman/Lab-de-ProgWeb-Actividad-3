@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Tareas - JavaScript :b</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --danger: #ef4444;
+            --success: #10b981;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: var(--primary);
+        }
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .form-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        input, select {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            background: #e0e7ff;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background-color: #f1f5f9;
+        }
+        .actions button {
+            padding: 6px 10px;
+            font-size: 13px;
+            margin-right: 5px;
+        }
+        .btn-delete {
+            background-color: var(--danger);
+        }
+        .btn-delete:hover {
+            background-color: #dc2626;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Gestor de Tareas Academicas</h1>
+
+    <div class="card">
+        <h3>Registrar Nueva Tarea</h3>
+        <form id="taskForm" onsubmit="guardarTarea(event)">
+            <div class="form-group">
+                <input type="text" id="nombreTarea" placeholder="Nombre de la tarea o materia" required>
+                <select id="prioridadTarea">
+                    <option value="Baja">Prioridad Baja</option>
+                    <option value="Media">Prioridad Media</option>
+                    <option value="Alta">Prioridad Alta</option>
+                </select>
+                <button type="submit" id="btnGuardar">Agregar Tarea</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <div class="stats">
+            <span id="contadorTotal">Total de tareas: 0</span>
+            <span id="contadorPendientes">Pendientes: 0</span>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <input type="text" id="buscador" placeholder="Buscar tarea..." onkeyup="filtrarTareas()">
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Tarea</th>
+                    <th>Prioridad</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </i>
+            <tbody id="listaTareas">
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Arreglo principal de tareas y estado de edicion
+        let tareas = JSON.parse(localStorage.getItem('tareas_web')) || [];
+        let editandoIndex = null;
+
+        // Funcion flecha para guardar o actualizar tarea
+        const guardarTarea = (e) => {
+            e.preventDefault();
+            const nombre = document.getElementById('nombreTarea').value.trim();
+            const prioridad = document.getElementById('prioridadTarea').value;
+
+            if (nombre === '') {
+                alert('Por favor, ingresa el nombre de la tarea.');
+                return;
+            }
+
+            if (editandoIndex === null) {
+                // Crear nueva tarea (Modelo con objetos)
+                const nuevaTarea = {
+                    id: Date.now(),
+                    nombre,
+                    prioridad,
+                    completada: false
+                };
+                tareas.push(nuevaTarea);
+            } else {
+                // Actualizar tarea existente
+                tareas[editandoIndex].nombre = nombre;
+                tareas[editandoIndex].prioridad = prioridad;
+                editandoIndex = null;
+                document.getElementById('btnGuardar').innerText = 'Agregar Tarea';
+            }
+
+            document.getElementById('taskForm').reset();
+            sincronizarStorageYRender();
+        };
+
+        // Renderizar la tabla en el DOM usando Template Literals
+        const renderizarTareas = (arrayTareas = tareas) => {
+            const tbody = document.getElementById('listaTareas');
+            tbody.innerHTML = '';
+
+            if (arrayTareas.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #64748b;">No hay tareas registradas.</td></tr>`;
+                actualizarContadores();
+                return;
+            }
+
+            arrayTareas.forEach((tarea, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="${tarea.completada ? 'text-decoration: line-through; color: #94a3b8;' : ''}">${tarea.nombre}</td>
+                    <td>${tarea.prioridad}</td>
+                    <td>${tarea.completada ? 'Completada' : 'Pendiente'}</td>
+                    <td class="actions">
+                        <button onclick="alternarEstado(${index})">${tarea.completada ? 'Deshacer' : 'Completar'}</button>
+                        <button onclick="prepararEdicion(${index})">Editar</button>
+                        <button class="btn-delete" onclick="eliminarTarea(${index})">Eliminar</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            actualizarContadores();
+        };
+
+        // Funciones de operaciones CRUD
+        const eliminarTask = (index) => {
+            // function alias or direct implementation
+        }
+
+        const eliminarTarea = (index) => {
+            if (confirm('¿Estas seguro de eliminar esta tarea?')) {
+                tareas.splice(index, 1);
+                sincronizarStorageYRender();
+            }
+        };
+
+        const prepararEdicion = (index) => {
+            document.getElementById('nombreTarea').value = tareas[index].nombre;
+            document.getElementById('prioridadTarea').value = tareas[index].prioridad;
+            editandoIndex = index;
+            document.getElementById('btnGuardar').innerText = 'Actualizar Tarea';
+        };
+
+        const alternarEstado = (index) => {
+            tareas[index].completada = !tareas[index].completada;
+            sincronizarStorageYRender();
+        };
+
+        // Funcion adicional: Busqueda y filtrado automatico
+        const filtrarTareas = () => {
+            const textoBusqueda = document.getElementById('buscador').value.toLowerCase();
+            const filtradas = tareas.filter(t => t.nombre.toLowerCase().includes(textoBusqueda));
+            renderizarTareas(filtradas);
+        };
+
+        // Cálculo automatico y contadores
+        const actualizarContadores = () => {
+            document.getElementById('contadorTotal').innerText = `Total de tareas: ${tareas.length}`;
+            const pendientes = tareas.filter(t => !t.completada).length;
+            document.getElementById('contadorPendientes').innerText = `Pendientes: ${pendientes}`;
+        };
+
+        // Persistencia con localStorage
+        const sincronizarStorageYRender = () => {
+            localStorage.setItem('tareas_web', JSON.stringify(tareas));
+            renderizarTareas();
+        };
+
+        // Carga inicial al abrir la pagina
+        renderizarTareas();
+    </script>
+
+</body>
+</html>
